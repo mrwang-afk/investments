@@ -1,0 +1,1050 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#8b3dff">
+<style>body{margin:0}[hidden]{display:none!important}img{max-width:100%}</style>
+<title>Tracker de Fondeo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=Sora:wght@500;600;700&display=swap">
+<style>
+/* Layout: KPI grid (2×3) → curva de capital → 4 métricas diarias → registro con pestañas (challenges, operaciones, retiros, fondeadas) */
+:root {
+  --bg: #f4f4f8;
+  --surface: #ffffff;
+  --surface-2: #f8f7fc;
+  --line: #e7e5ef;
+  --fg: #1d1b26;
+  --muted: #6e6a7d;
+  --accent: #8b3dff;
+  --accent-soft: #f1e8ff;
+  --gain: #14a36b;
+  --gain-soft: #e3f6ee;
+  --loss: #e0343f;
+  --loss-soft: #fde8ea;
+  --blue: #2d6cf0;
+  --blue-soft: #e6eefe;
+  --warn: #c27a00;
+  --warn-soft: #fdf1dc;
+  --shadow: 0 1px 2px rgba(40, 30, 70, .04), 0 6px 24px rgba(40, 30, 70, .05);
+  --font-ui: "Figtree", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-num: "Sora", "Figtree", system-ui, sans-serif;
+  --r: 14px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #121118; --surface: #1b1a23; --surface-2: #22202c; --line: #2f2c3b;
+    --fg: #ecebf3; --muted: #9c98ad; --accent: #a874ff; --accent-soft: #2b2140;
+    --gain: #34c98c; --gain-soft: #163428; --loss: #ff6670; --loss-soft: #3a1c21;
+    --blue: #6b9bff; --blue-soft: #1c2742; --warn: #f0b04a; --warn-soft: #3a2c14;
+    --shadow: 0 1px 2px rgba(0,0,0,.3);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #121118; --surface: #1b1a23; --surface-2: #22202c; --line: #2f2c3b;
+  --fg: #ecebf3; --muted: #9c98ad; --accent: #a874ff; --accent-soft: #2b2140;
+  --gain: #34c98c; --gain-soft: #163428; --loss: #ff6670; --loss-soft: #3a1c21;
+  --blue: #6b9bff; --blue-soft: #1c2742; --warn: #f0b04a; --warn-soft: #3a2c14;
+  --shadow: 0 1px 2px rgba(0,0,0,.3);
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--fg); font-family: var(--font-ui); font-size: 14px; line-height: 1.45; }
+.wrap { max-width: 1240px; margin: 0 auto; padding: 28px 20px 56px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; }
+h1 { font-family: var(--font-num); font-size: 22px; font-weight: 700; margin: 0; letter-spacing: -.01em; }
+.head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: end; gap: 12px; }
+.head p { margin: 4px 0 0; color: var(--muted); }
+.sync { font-size: 12px; color: var(--muted); display: inline-flex; align-items: center; gap: 6px; }
+.sync i { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); display: inline-block; }
+.sync.on i { background: var(--gain); }
+.brand { display: block; font-family: var(--font-num); font-size: 11px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: var(--accent); margin-bottom: 4px; }
+
+.head-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.who { display: inline-flex; align-items: center; gap: 8px; font-weight: 600; font-size: 13px; }
+.who span::before { content: "@"; color: var(--muted); }
+.auth { min-height: 100vh; min-height: 100dvh; display: grid; place-items: center; padding: 24px 16px; }
+.auth-card { width: 100%; max-width: 400px; padding: 28px 24px; display: grid; gap: 18px; }
+.auth-brand { display: flex; gap: 12px; align-items: center; }
+.auth-brand h1 { font-size: 19px; }
+.auth-brand .sub { margin: 2px 0 0; font-size: 13px; }
+.auth .tab { flex: 1; justify-content: center; }
+.auth-form { display: grid; gap: 12px; }
+.auth-form .btn { padding: 12px; }
+.auth-form .btn:disabled { opacity: .6; cursor: wait; }
+.backup { display: flex; gap: 8px; }
+
+/* Selector de mercado CFD / Futuros */
+.market { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 6px; box-shadow: var(--shadow); max-width: 520px; }
+.mkt { border: 0; background: transparent; color: var(--muted); border-radius: 10px; padding: 10px 14px; cursor: pointer; text-align: left; display: grid; gap: 1px; font-family: var(--font-ui); }
+.mkt b { font: 700 15px var(--font-num); color: inherit; display: flex; align-items: center; gap: 8px; }
+.mkt small { font-size: 12px; font-weight: 500; }
+.mkt .n { font: 600 11px var(--font-ui); background: var(--line); color: var(--muted); border-radius: 99px; padding: 1px 7px; font-variant-numeric: tabular-nums; }
+.mkt[aria-selected="true"] { background: var(--accent); color: #fff; }
+.mkt[aria-selected="true"] small { color: rgba(255,255,255,.82); }
+.mkt[aria-selected="true"] .n { background: rgba(255,255,255,.22); color: #fff; }
+.mkt:not([aria-selected="true"]):hover { background: var(--surface-2); color: var(--fg); }
+.mkt:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* Dirección y consistencia */
+.chip.long { background: var(--gain-soft); color: var(--gain); }
+.chip.short { background: var(--loss-soft); color: var(--loss); }
+.chip.f0 { background: var(--blue-soft); color: var(--blue); }
+.cons { display: inline-flex; align-items: center; gap: 8px; }
+.cons-st { font-size: 12px; font-weight: 600; white-space: nowrap; }
+.cons-st.ok { color: var(--gain); } .cons-st.bad { color: var(--loss); } .cons-st.na { color: var(--muted); font-weight: 500; }
+label.btn { display: inline-block; }
+
+.banner { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px;
+  background: var(--warn-soft); color: var(--fg); border-radius: 12px; padding: 12px 16px; }
+.banner b { color: var(--warn); }
+
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); box-shadow: var(--shadow); }
+.kpis { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.kpi { padding: 22px 24px; display: grid; gap: 4px; min-width: 0; }
+.kpi-value { overflow-wrap: anywhere; }
+.kpi-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; gap: 8px; }
+.ico { width: 38px; height: 38px; border-radius: 10px; display: grid; place-items: center; }
+.ico svg { width: 20px; height: 20px; }
+.ico.blue { background: var(--blue-soft); color: var(--blue); }
+.ico.green { background: var(--gain-soft); color: var(--gain); }
+.ico.purple { background: var(--accent-soft); color: var(--accent); }
+.ico.red { background: var(--loss-soft); color: var(--loss); }
+.trend { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.trend.up { color: var(--gain); } .trend.down { color: var(--loss); } .trend.flat { color: var(--muted); }
+.kpi-label { color: var(--muted); font-weight: 500; }
+.kpi-value { font-family: var(--font-num); font-size: 26px; font-weight: 700; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.kpi-value.neg { color: var(--loss); }
+
+.chart-card { padding: 22px 24px 18px; }
+.chart-card h2, .panel h2 { font-family: var(--font-num); font-size: 17px; font-weight: 600; margin: 0; }
+.sub { color: var(--muted); margin: 4px 0 0; }
+.legend { display: flex; gap: 18px; margin: 14px 0 6px; flex-wrap: wrap; font-size: 13px; font-weight: 500; }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+.chart-box { position: relative; height: 340px; }
+.chart-empty { position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); text-align: center; padding: 20px; }
+
+.minis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
+.mini { padding: 18px 20px; }
+.mini-top { display: flex; justify-content: space-between; align-items: center; color: var(--fg); font-weight: 500; }
+.mini-top svg { width: 18px; height: 18px; }
+.mini .kpi-value { font-size: 22px; margin-top: 10px; }
+.mini small { color: var(--muted); font-size: 12px; }
+
+.panel { padding: 20px 24px 24px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
+.pane { min-width: 0; }
+.tabs { display: flex; gap: 4px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 11px; padding: 4px; overflow-x: auto; }
+.tab { border: 0; background: transparent; color: var(--muted); font: 600 13px var(--font-ui); padding: 8px 14px; border-radius: 8px; cursor: pointer; white-space: nowrap; display: inline-flex; gap: 6px; align-items: center; }
+.tab[aria-selected="true"] { background: var(--surface); color: var(--fg); box-shadow: var(--shadow); }
+.tab .n { font-size: 11px; background: var(--line); color: var(--muted); border-radius: 99px; padding: 1px 7px; font-variant-numeric: tabular-nums; }
+.tab:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+form.entry { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px 12px; align-items: end;
+  background: var(--surface-2); border: 1px solid var(--line); border-radius: 12px; padding: 14px; }
+label.f { display: grid; gap: 5px; font-size: 12px; font-weight: 600; color: var(--muted); letter-spacing: .02em; }
+input, select { font: 500 14px var(--font-ui); color: var(--fg); background: var(--surface); border: 1px solid var(--line); border-radius: 9px; padding: 9px 11px; width: 100%; min-width: 0; }
+.btn { font: 600 14px var(--font-ui); border: 0; border-radius: 9px; padding: 10px 16px; cursor: pointer; background: var(--accent); color: #fff; white-space: nowrap; }
+.btn:hover { filter: brightness(1.06); }
+.btn.ghost { background: transparent; color: var(--fg); border: 1px solid var(--line); }
+.btn.small { padding: 6px 10px; font-size: 12px; }
+.form-msg { grid-column: 1 / -1; font-size: 13px; color: var(--loss); min-height: 0; }
+.form-msg:empty { display: none; }
+.form-hint { grid-column: 1 / -1; margin: 0; font-size: 12px; color: var(--muted); }
+td input.pct { width: 64px; padding: 5px 7px; font-size: 13px; text-align: right; font-variant-numeric: tabular-nums; }
+.pctcell { display: inline-flex; align-items: center; gap: 4px; color: var(--muted); }
+.phase { display: inline-flex; align-items: center; gap: 8px; }
+.chip.f1 { background: var(--surface-2); color: var(--fg); border: 1px solid var(--line); }
+.chip.f2 { background: var(--accent-soft); color: var(--accent); }
+.step { background: transparent; border: 1px solid var(--line); color: var(--fg); border-radius: 7px; padding: 4px 9px; cursor: pointer; font: 600 12px var(--font-ui); white-space: nowrap; }
+.step:hover { border-color: var(--accent); color: var(--accent); }
+.step.go { background: var(--gain); border-color: var(--gain); color: #fff; }
+
+.tbl-wrap { overflow-x: auto; max-height: 460px; overflow-y: auto; border: 1px solid var(--line); border-radius: 12px; }
+table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+th { position: sticky; top: 0; background: var(--surface-2); text-align: left; font-size: 12px; font-weight: 600; color: var(--muted); letter-spacing: .03em; text-transform: uppercase; padding: 10px 12px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+td { padding: 10px 12px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+tr:last-child td { border-bottom: 0; }
+td.num, th.num { text-align: right; }
+td.note { white-space: normal; min-width: 160px; color: var(--muted); }
+.pos { color: var(--gain); font-weight: 600; } .neg-t { color: var(--loss); font-weight: 600; }
+.chip { display: inline-block; font-size: 12px; font-weight: 600; padding: 3px 9px; border-radius: 99px; }
+.chip.en_curso { background: var(--blue-soft); color: var(--blue); }
+.chip.fondeada { background: var(--gain-soft); color: var(--gain); }
+.chip.perdida { background: var(--warn-soft); color: var(--warn); }
+.chip.fallida { background: var(--loss-soft); color: var(--loss); }
+.chip.ej { background: var(--warn-soft); color: var(--warn); margin-left: 6px; }
+td select { padding: 5px 8px; font-size: 13px; width: auto; }
+.del { background: transparent; border: 1px solid transparent; color: var(--muted); border-radius: 7px; padding: 4px 8px; cursor: pointer; font: 600 12px var(--font-ui); }
+.del:hover { border-color: var(--line); color: var(--loss); }
+.del.armed { background: var(--loss); color: #fff; }
+.empty { padding: 28px 16px; text-align: center; color: var(--muted); }
+
+.funded { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
+.fcard { border: 1px solid var(--line); border-radius: 12px; padding: 16px; display: grid; gap: 10px; background: var(--surface); }
+.fcard header { display: flex; justify-content: space-between; align-items: start; gap: 8px; }
+.fcard h3 { margin: 0; font-size: 15px; font-weight: 700; }
+.fcard .co { color: var(--muted); font-size: 12px; }
+.frow { display: flex; justify-content: space-between; font-size: 13px; gap: 8px; }
+.frow span:first-child { color: var(--muted); }
+.frow span:last-child { font-variant-numeric: tabular-nums; font-weight: 600; }
+
+@media (max-width: 900px) {
+  .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .minis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 520px) {
+  .wrap { padding-inline: 16px; }
+  .kpis, .minis { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .kpi { padding: 16px; } .kpi-top { margin-bottom: 8px; }
+  .kpi-value { font-size: 19px; } .mini .kpi-value { font-size: 17px; }
+  .trend { font-size: 11px; }
+  .ico { width: 32px; height: 32px; }
+  .chart-card, .panel { padding: 16px; }
+  .chart-box { height: 260px; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+</head>
+<body>
+<!-- ======================================================================
+     CONFIGURACIÓN — pega aquí la configuración de tu proyecto de Firebase
+     (Configuración del proyecto → General → Tus apps → Configuración del SDK).
+     Si la dejas vacía, la página funciona sin login y guarda los datos
+     solo en el navegador.
+     EMAIL_DOMAIN: un dominio tuyo. Solo se usa por dentro para convertir
+     el nombre de usuario en el formato que pide Firebase; no se envía
+     ningún correo.
+     ====================================================================== -->
+<script>
+  window.TRACKER_CONFIG = {
+    FIREBASE: {
+      apiKey: "AIzaSyCNYctZn25vwfAzo3ktgijlSaoUUkUejcY",
+      authDomain: "mrwang-investments.firebaseapp.com",
+      projectId: "mrwang-investments",
+      storageBucket: "mrwang-investments.firebasestorage.app",
+      messagingSenderId: "710325774180",
+      appId: "1:710325774180:web:9a5bcc463a6ecf2016bc71"
+    },
+    EMAIL_DOMAIN: "tudominio.com"
+  };
+</script>
+
+<div class="auth" id="auth" hidden>
+  <div class="auth-card card">
+    <div class="auth-brand"><span class="ico purple"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l6-6 4 4 8-8M15 7h6v6"/></svg></span>
+      <div><span class="brand">MrWang Investments Systems</span><h1>Tracker de Fondeo</h1><p class="sub">Tus challenges, operaciones y retiros, en cualquier dispositivo.</p></div></div>
+    <div class="tabs" role="tablist">
+      <button class="tab" type="button" data-auth="login" aria-selected="true">Entrar</button>
+      <button class="tab" type="button" data-auth="signup" aria-selected="false">Crear cuenta</button>
+    </div>
+    <form id="authForm" class="auth-form" autocomplete="on">
+      <label class="f">Usuario<input id="authUser" autocomplete="username" placeholder="mrwang" required></label>
+      <label class="f">Contraseña<input id="authPass" type="password" autocomplete="current-password" required minlength="6"></label>
+      <label class="f" id="authPass2Wrap" hidden>Repite la contraseña<input id="authPass2" type="password" autocomplete="new-password" minlength="6"></label>
+      <div class="form-msg" id="authMsg"></div>
+      <button class="btn" type="submit" id="authBtn">Entrar</button>
+    </form>
+  </div>
+</div>
+
+<div class="wrap" id="app">
+  <div class="head">
+    <div>
+      <span class="brand">MrWang Investments Systems</span>
+      <h1>Tracker de Fondeo</h1>
+      <p>Challenges, operaciones, retiros y cuentas fondeadas en un solo panel.</p>
+    </div>
+    <div class="head-actions">
+      <span class="sync" id="sync"><i></i><span id="syncTxt">Conectando…</span></span>
+      <div class="who" id="who" hidden><span id="whoName"></span><button class="btn small ghost" id="logoutBtn" type="button">Cerrar sesión</button></div>
+      <div class="backup" id="backup" hidden>
+        <button class="btn small ghost" id="expBtn" type="button">Exportar copia</button>
+        <label class="btn small ghost" for="impFile">Importar copia</label>
+        <input type="file" id="impFile" accept="application/json,.json" hidden>
+      </div>
+    </div>
+  </div>
+  <nav class="market" role="tablist" aria-label="Tipo de mercado">
+    <button class="mkt" type="button" role="tab" data-mkt="cfd" aria-selected="true"><b>CFD <span class="n" id="nMktCfd">0</span></b><small>Forex, índices y metales · 2 fases</small></button>
+    <button class="mkt" type="button" role="tab" data-mkt="futuros" aria-selected="false"><b>Futuros <span class="n" id="nMktFut">0</span></b><small>CME · fase única y consistencia</small></button>
+  </nav>
+  <div class="banner" id="impMsg" hidden></div>
+
+  <div class="banner" id="exBanner" hidden>
+    <span><b>Datos de ejemplo.</b> Estas filas están marcadas como ejemplo para que veas cómo funciona. Bórralas cuando empieces a meter tus cuentas.</span>
+    <button class="btn small ghost" id="clearEx" type="button">Borrar ejemplos</button>
+  </div>
+
+  <section class="kpis">
+    <article class="card kpi">
+      <div class="kpi-top"><span class="ico blue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="4" y="11" width="4" height="9" rx="1"/><rect x="10" y="6" width="4" height="14" rx="1"/><rect x="16" y="3" width="4" height="17" rx="1"/></svg></span><span class="trend up" id="kEvalSub"></span></div>
+      <span class="kpi-label">Evaluaciones</span><span class="kpi-value" id="kEval">0</span>
+    </article>
+    <article class="card kpi">
+      <div class="kpi-top"><span class="ico green"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0V4z"/><path d="M17 5h3v2a3 3 0 0 1-3 3M7 5H4v2a3 3 0 0 0 3 3"/></svg></span><span class="trend up" id="kLiveSub"></span></div>
+      <span class="kpi-label">Cuentas Live</span><span class="kpi-value" id="kLive">0</span>
+    </article>
+    <article class="card kpi">
+      <div class="kpi-top"><span class="ico purple"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M9 15l6-6"/><circle cx="9.2" cy="9.2" r=".8" fill="currentColor"/><circle cx="14.8" cy="14.8" r=".8" fill="currentColor"/></svg></span><span class="trend up" id="kRatioSub"></span></div>
+      <span class="kpi-label">Funding Ratio</span><span class="kpi-value" id="kRatio">0,0%</span>
+    </article>
+    <article class="card kpi">
+      <div class="kpi-top"><span class="ico red"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="6" width="18" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/></svg></span><span class="trend down" id="kGasSub"></span></div>
+      <span class="kpi-label">Gastos Totales</span><span class="kpi-value" id="kGas">0,00 €</span>
+    </article>
+    <article class="card kpi">
+      <div class="kpi-top"><span class="ico green"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M14.5 9.5c-.4-.9-1.4-1.5-2.5-1.5-1.5 0-2.5.8-2.5 2s1 1.7 2.5 2 2.5.8 2.5 2-1 2-2.5 2c-1.1 0-2.1-.6-2.5-1.5M12 6.5V8M12 16v1.5"/></svg></span><span class="trend up" id="kGanSub"></span></div>
+      <span class="kpi-label">Ganancias Totales</span><span class="kpi-value" id="kGan">0,00 €</span>
+    </article>
+    <article class="card kpi">
+      <div class="kpi-top"><span class="ico green" id="kNetIco"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l6-6 4 4 8-8M15 7h6v6"/></svg></span><span class="trend up" id="kNetSub"></span></div>
+      <span class="kpi-label">Beneficio Neto</span><span class="kpi-value" id="kNet">0,00 €</span>
+    </article>
+  </section>
+
+  <section class="card chart-card">
+    <h2>Evolución del Capital</h2>
+    <p class="sub">Retiros cobrados menos lo invertido en challenges, acumulado en el tiempo</p>
+    <div class="legend">
+      <span><i style="background:var(--accent)"></i>Capital</span>
+      <span><i style="background:var(--gain)"></i>Ganancias</span>
+      <span><i style="background:var(--loss)"></i>Gastos</span>
+    </div>
+    <div class="chart-box">
+      <canvas id="chart" aria-label="Evolución del capital acumulado"></canvas>
+      <div class="chart-empty" id="chartEmpty" hidden>Añade tu primer challenge o retiro y aquí verás la curva de capital.</div>
+    </div>
+  </section>
+
+  <section class="minis">
+    <article class="card mini">
+      <div class="mini-top">Mejor Día <svg viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="2" stroke-linecap="round"><path d="M3 17l6-6 4 4 8-8"/></svg></div>
+      <div class="kpi-value" id="mBest">0,00 €</div><small>Mayor ganancia diaria en operaciones</small>
+    </article>
+    <article class="card mini">
+      <div class="mini-top">Peor Día <svg viewBox="0 0 24 24" fill="none" stroke="var(--loss)" stroke-width="2" stroke-linecap="round"><path d="M3 7l6 6 4-4 8 8"/></svg></div>
+      <div class="kpi-value" id="mWorst">0,00 €</div><small>Mayor pérdida diaria en operaciones</small>
+    </article>
+    <article class="card mini">
+      <div class="mini-top">Promedio Diario <svg viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"><path d="M6 20V10M12 20V4M18 20v-7"/></svg></div>
+      <div class="kpi-value" id="mAvg">0,00 €</div><small>Resultado medio por día operado</small>
+    </article>
+    <article class="card mini">
+      <div class="mini-top">Retiros <svg viewBox="0 0 24 24" fill="none" stroke="var(--gain)" stroke-width="2" stroke-linecap="round"><path d="M12 4v12M7 11l5 5 5-5M5 20h14"/></svg></div>
+      <div class="kpi-value" id="mPay">0</div><small>Número de retiros realizados</small>
+    </article>
+  </section>
+
+  <section class="card panel">
+    <h2>Registro</h2>
+    <div class="tabs" role="tablist">
+      <button class="tab" role="tab" data-tab="challenges" aria-selected="true">Challenges <span class="n" id="nCh">0</span></button>
+      <button class="tab" role="tab" data-tab="operaciones" aria-selected="false">Operaciones <span class="n" id="nOp">0</span></button>
+      <button class="tab" role="tab" data-tab="retiros" aria-selected="false">Retiros <span class="n" id="nRt">0</span></button>
+      <button class="tab" role="tab" data-tab="fondeadas" aria-selected="false">Cuentas fondeadas <span class="n" id="nFd">0</span></button>
+    </div>
+
+    <!-- Challenges -->
+    <div class="pane" data-pane="challenges">
+      <form class="entry" id="fCh" autocomplete="off">
+        <label class="f">Empresa de fondeo<input id="chEmp" list="firms" placeholder="FTMO" required></label>
+        <label class="f">Nombre de la cuenta<input id="chName" placeholder="100K #1" required></label>
+        <label class="f">Tamaño<input id="chSize" inputmode="decimal" placeholder="100000"></label>
+        <label class="f">Coste (€)<input id="chCost" inputmode="decimal" placeholder="540" required></label>
+        <label class="f">Fecha de compra<input id="chDate" type="date" required></label>
+        <label class="f" id="chPhaseWrap">Fase
+          <select id="chPhase">
+            <option value="1">Fase 1</option>
+            <option value="2">Fase 2</option>
+          </select>
+        </label>
+        <label class="f" id="chConsWrap" hidden>Consistencia
+          <select id="chCons">
+            <option value="40">40%</option>
+            <option value="50" selected>50%</option>
+            <option value="">Sin regla</option>
+          </select>
+        </label>
+        <label class="f"><span>Profit target (<span class="u">%</span>)</span><input id="chPT" inputmode="decimal" placeholder="10"></label>
+        <label class="f"><span>Max DD (<span class="u">%</span>)</span><input id="chMDD" inputmode="decimal" placeholder="10"></label>
+        <label class="f"><span>Daily DD (<span class="u">%</span>)</span><input id="chDDD" inputmode="decimal" placeholder="5"></label>
+        <label class="f">Estado
+          <select id="chState">
+            <option value="en_curso">En curso</option>
+            <option value="fondeada" disabled>Aprobada · fondeada</option>
+            <option value="fallida">Fallida</option>
+            <option value="perdida" disabled>Fondeada perdida</option>
+          </select>
+        </label>
+        <button class="btn" type="submit">Añadir challenge</button>
+        <p class="form-hint" id="chHint"></p>
+        <div class="form-msg" id="chMsg"></div>
+      </form>
+      <datalist id="firms"></datalist>
+      <div class="tbl-wrap" style="margin-top:14px"><table>
+        <thead id="hCh"></thead>
+        <tbody id="tCh"></tbody>
+      </table></div>
+    </div>
+
+    <!-- Operaciones -->
+    <div class="pane" data-pane="operaciones" hidden>
+      <form class="entry" id="fOp" autocomplete="off">
+        <label class="f">Cuenta<select id="opAcc" required></select></label>
+        <label class="f">Fecha<input id="opDate" type="date" required></label>
+        <label class="f">Activo<input id="opAsset" placeholder="EURUSD"></label>
+        <label class="f">Dirección
+          <select id="opDir">
+            <option value="long">Long (compra)</option>
+            <option value="short">Short (venta)</option>
+          </select>
+        </label>
+        <label class="f">Resultado (€, + o −)<input id="opPnl" inputmode="decimal" placeholder="-120 o 350" required></label>
+        <label class="f">Nota<input id="opNote" placeholder="Ruptura de rango en Londres"></label>
+        <button class="btn" type="submit">Añadir operación</button>
+        <div class="form-msg" id="opMsg"></div>
+      </form>
+      <div class="tbl-wrap" style="margin-top:14px"><table>
+        <thead><tr><th>Fecha</th><th>Cuenta</th><th>Activo</th><th>Dirección</th><th class="num">Resultado</th><th>Nota</th><th></th></tr></thead>
+        <tbody id="tOp"></tbody>
+      </table></div>
+    </div>
+
+    <!-- Retiros -->
+    <div class="pane" data-pane="retiros" hidden>
+      <form class="entry" id="fRt" autocomplete="off">
+        <label class="f">Cuenta fondeada<select id="rtAcc" required></select></label>
+        <label class="f">Fecha<input id="rtDate" type="date" required></label>
+        <label class="f">Importe cobrado (€)<input id="rtAmt" inputmode="decimal" placeholder="1200" required></label>
+        <button class="btn" type="submit">Añadir retiro</button>
+        <div class="form-msg" id="rtMsg"></div>
+      </form>
+      <div class="tbl-wrap" style="margin-top:14px"><table>
+        <thead><tr><th>Fecha</th><th>Cuenta</th><th class="num">Importe</th><th></th></tr></thead>
+        <tbody id="tRt"></tbody>
+      </table></div>
+    </div>
+
+    <!-- Fondeadas -->
+    <div class="pane" data-pane="fondeadas" hidden>
+      <p class="sub" style="margin:0 0 12px">Cuentas que han pasado el challenge. Para añadir una, crea el challenge con estado «Fondeada» o cámbiale el estado en la tabla de challenges.</p>
+      <div class="funded" id="gFd"></div>
+    </div>
+  </section>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/firebase@10.14.1/firebase-app-compat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/firebase@10.14.1/firebase-auth-compat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/firebase@10.14.1/firebase-firestore-compat.js"></script>
+<script>
+(() => {
+  const $ = (s) => document.querySelector(s);
+  const fmtEur = new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR", minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const eur = (n) => fmtEur.format(n || 0);
+  const pct = (n) => (isFinite(n) ? n : 0).toLocaleString("es-ES", { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + "%";
+  const sizeTxt = (n) => !n ? "—" : n >= 1000 ? (n / 1000).toLocaleString("es-ES", { maximumFractionDigits: 1 }) + "K" : String(n);
+  const num = (v) => { const x = parseFloat(String(v).trim().replace(/\s/g, "").replace(/\.(?=\d{3}(\D|$))/g, "").replace(",", ".")); return isFinite(x) ? x : NaN; };
+  const today = () => { const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 10); };
+  const dLabel = (iso) => new Date(iso + "T12:00:00").toLocaleDateString("es-ES", { day: "numeric", month: "short", year: "2-digit" }).replace(".", "");
+  const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const ESTADOS = { en_curso: "En curso", fondeada: "Aprobada · fondeada", fallida: "Fallida", perdida: "Fondeada perdida" };
+  const PCT_FIELDS = [["profitTarget", "Profit target"], ["maxDD", "Max DD"], ["dailyDD", "Daily DD"]];
+
+  // ---------- Mercado: CFD (2 fases, objetivos en %) / Futuros (fase única, objetivos en $, consistencia) ----------
+  const MKT_KEY = "fondeo-mercado";
+  let market = "cfd";
+  try { if (localStorage.getItem(MKT_KEY) === "futuros") market = "futuros"; } catch (e) {}
+  const mktOf = (c) => (c && c.mercado === "futuros" ? "futuros" : "cfd");
+  const isFut = (c) => mktOf(c) === "futuros";
+  const FIRMS = {
+    cfd: ["FTMO", "FundedNext", "The5ers", "Funding Pips", "Alpha Capital", "E8 Markets", "Blue Guardian", "AquaFunded", "FXIFY"],
+    futuros: ["Topstep", "Apex Trader Funding", "Lucid Trading", "Take Profit Trader", "MyFundedFutures", "Tradeify", "Alpha Futures", "Bulenox"],
+  };
+  const MKT_UI = {
+    cfd: { emp: "FTMO", name: "100K #1", size: "100000", cost: "540", pt: "10", mdd: "10", ddd: "5", asset: "EURUSD",
+      hint: "Una cuenta solo cuenta como aprobada cuando supera la fase 2. En la tabla puedes pasarla de fase 1 a fase 2 y después aprobarla; el profit target y los drawdowns (en %) se editan en la propia fila." },
+    futuros: { emp: "Topstep", name: "50K #1", size: "50000", cost: "49", pt: "3000", mdd: "2000", ddd: "", asset: "NQ",
+      hint: "Futuros tiene una sola fase: al aprobarla, la cuenta pasa a fondeada. Profit target y drawdowns van en dólares de la cuenta. La consistencia compara tu mejor día con el beneficio total de la cuenta (por ejemplo, con 40% tu mejor día no puede superar el 40% del total)." },
+  };
+  const phaseOf = (c) => (isFut(c) ? 1 : Number(c.fase) === 2 || c.estado === "fondeada" || c.estado === "perdida" ? 2 : 1);
+  const fmtUsd = (v) => "$" + Number(v).toLocaleString("es-ES", { maximumFractionDigits: 2 });
+  const unitTxt = (v, c) => (v == null || v === "" ? "—" : isFut(c) ? fmtUsd(v) : String(v).replace(".", ",") + "%");
+  const pctTxt = (v) => (v == null || v === "" ? "—" : String(v).replace(".", ",") + "%");
+
+  // Consistencia: % que supone el mejor día sobre el beneficio total de la cuenta
+  function consistencyOf(c, ops) {
+    const days = {};
+    ops.filter((o) => o.cuentaId === c.id).forEach((o) => { days[o.fecha] = (days[o.fecha] || 0) + (Number(o.pnl) || 0); });
+    const vals = Object.values(days);
+    const total = vals.reduce((a, b) => a + b, 0);
+    const best = vals.length ? Math.max(...vals) : 0;
+    const limit = c.consistencia == null || c.consistencia === "" ? null : Number(c.consistencia);
+    if (total <= 0 || best <= 0) return { limit, ratio: null, ok: null };
+    const ratio = (best / total) * 100;
+    return { limit, ratio, ok: limit == null ? null : ratio <= limit };
+  }
+  function consStatus(c, ops) {
+    const k = consistencyOf(c, ops);
+    if (k.limit == null) return `<span class="cons-st na">Sin regla</span>`;
+    if (k.ratio == null) return `<span class="cons-st na">Sin beneficio aún</span>`;
+    return `<span class="cons-st ${k.ok ? "ok" : "bad"}">Mejor día ${pct(k.ratio)} ${k.ok ? "✓" : "✗ incumple"}</span>`;
+  }
+
+  let records = [];
+  let canWrite = true;
+
+  // ---------- Almacenamiento ----------
+  const LS = "fondeo-tracker-local";
+  const newId = () => (crypto.randomUUID ? crypto.randomUUID() : "l" + Date.now() + Math.random().toString(36).slice(2, 10));
+  const body = (r) => { const { id, ...rest } = r; return rest; };
+  const clean = (o) => JSON.parse(JSON.stringify(o));
+  let fdb = null, uid = null, unsub = null;
+  const userCol = () => fdb.collection("users").doc(uid).collection("registros");
+
+  const store = {
+    mode: "local",
+    col: null,
+    async add(rec) {
+      if (this.col) return this.col.add(rec);
+      const row = { id: newId(), ...rec };
+      const before = records;
+      records = [...records, row]; render();
+      if (this.mode === "fb") {
+        try { await userCol().doc(row.id).set(clean(rec)); }
+        catch (err) { records = before; render(); saveFailed(err); throw err; }
+      } else saveLocal();
+    },
+    async update(id, patch) {
+      if (this.col) return this.col.doc(id).update(patch);
+      const before = records;
+      records = records.map((r) => (r.id === id ? { ...r, ...patch } : r)); render();
+      if (this.mode === "fb") {
+        const next = records.find((r) => r.id === id);
+        try { await userCol().doc(id).set(clean(body(next))); }
+        catch (err) { records = before; render(); saveFailed(err); throw err; }
+      } else saveLocal();
+    },
+    async remove(id) {
+      if (this.col) return this.col.doc(id).delete();
+      const before = records;
+      records = records.filter((r) => r.id !== id); render();
+      if (this.mode === "fb") {
+        try { await userCol().doc(id).delete(); }
+        catch (err) { records = before; render(); saveFailed(err); throw err; }
+      } else saveLocal();
+    },
+    async importMany(list) {
+      if (this.mode === "fb") {
+        for (let i = 0; i < list.length; i += 400) {
+          const batch = fdb.batch();
+          list.slice(i, i + 400).forEach((r) => batch.set(userCol().doc(String(r.id)), clean(body(r))));
+          try { await batch.commit(); } catch (err) { saveFailed(err); throw err; }
+        }
+        return; // la suscripción en tiempo real trae los datos nuevos
+      }
+      const map = new Map(records.map((r) => [r.id, r]));
+      list.forEach((r) => map.set(r.id, r));
+      records = [...map.values()];
+      saveLocal(); render();
+    },
+  };
+  function saveLocal() { try { localStorage.setItem(LS, JSON.stringify(records)); } catch (e) {} }
+  function loadLocal() { try { const v = JSON.parse(localStorage.getItem(LS) || "[]"); if (Array.isArray(v)) records = v; } catch (e) {} }
+  function setSync(on, txt) { $("#sync").classList.toggle("on", on); $("#syncTxt").textContent = txt; }
+  function saveFailed(err) {
+    setSync(false, err?.code === "permission-denied" ? "Sin permiso para guardar: revisa las reglas de Firestore" : "No se ha podido guardar el último cambio");
+    setTimeout(() => setSync(true, "Sincronizado"), 6000);
+  }
+
+  // ---------- Login (Firebase) ----------
+  const CFG = window.TRACKER_CONFIG || {};
+  const FB = CFG.FIREBASE || {};
+  const authOn = !!(FB.apiKey && FB.projectId);
+  let authMode = "login";
+  const cleanUser = (u) => u.trim().toLowerCase();
+  const toEmail = (u) => `${u}@${(CFG.EMAIL_DOMAIN || "tudominio.com").trim()}`;
+  const authErr = (e) => {
+    const c = e?.code || "";
+    if (["auth/invalid-credential", "auth/wrong-password", "auth/user-not-found", "auth/invalid-login-credentials"].includes(c)) return "Usuario o contraseña incorrectos.";
+    if (c === "auth/email-already-in-use") return "Ese usuario ya existe. Elige otro o entra con tu contraseña.";
+    if (c === "auth/weak-password") return "La contraseña tiene que tener al menos 6 caracteres.";
+    if (c === "auth/operation-not-allowed") return "Falta activar el acceso con correo y contraseña: en Firebase ve a Authentication → Método de acceso → Correo electrónico/contraseña y actívalo.";
+    if (c === "auth/admin-restricted-operation") return "El registro de cuentas nuevas está desactivado.";
+    if (c === "auth/too-many-requests") return "Demasiados intentos seguidos. Espera unos minutos y vuelve a probar.";
+    if (c === "auth/network-request-failed") return "No hay conexión con el servidor. Revisa tu internet.";
+    if (c === "auth/invalid-email") return "El EMAIL_DOMAIN de la configuración no es válido. Pon un dominio normal, por ejemplo midominio.com.";
+    if (c.includes("api-key")) return "La configuración de Firebase no es correcta. Revisa que hayas pegado bien el apiKey.";
+    return "No se ha podido completar: " + (e?.message || "error desconocido");
+  };
+  function setAuthMode(mode) {
+    authMode = mode;
+    document.querySelectorAll("[data-auth]").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.auth === mode)));
+    $("#authPass2Wrap").hidden = mode !== "signup";
+    $("#authPass2").required = mode === "signup";
+    $("#authPass").autocomplete = mode === "signup" ? "new-password" : "current-password";
+    $("#authBtn").textContent = mode === "signup" ? "Crear cuenta" : "Entrar";
+    $("#authMsg").textContent = "";
+  }
+  function showAuth(msg) {
+    if (unsub) { unsub(); unsub = null; }
+    records = []; uid = null;
+    $("#app").hidden = true; $("#auth").hidden = false;
+    $("#who").hidden = true;
+    setAuthMode("login");
+    $("#authMsg").textContent = msg || "";
+    $("#authPass").value = ""; $("#authPass2").value = "";
+    render();
+  }
+  function startSession(user) {
+    if (uid === user.uid) return;
+    if (unsub) { unsub(); unsub = null; }
+    uid = user.uid;
+    $("#whoName").textContent = user.displayName || (user.email || "").split("@")[0];
+    $("#who").hidden = false; $("#backup").hidden = false;
+    $("#auth").hidden = true; $("#app").hidden = false;
+    setSync(false, "Cargando tus datos…");
+    // Tiempo real: lo que cambies en el móvil aparece en el ordenador sin recargar
+    unsub = userCol().onSnapshot(
+      (snap) => { records = snap.docs.map((d) => ({ id: d.id, ...d.data() })); setSync(true, "Sincronizado"); render(); },
+      (err) => setSync(false, err?.code === "permission-denied" ? "Sin permiso: revisa las reglas de Firestore" : "No se han podido cargar los datos")
+    );
+  }
+  document.querySelectorAll("[data-auth]").forEach((b) => b.addEventListener("click", () => setAuthMode(b.dataset.auth)));
+  $("#authForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const msg = $("#authMsg"); msg.textContent = "";
+    if (!fdb) { msg.textContent = "No se ha podido cargar el sistema de login. Revisa la conexión y recarga la página."; return; }
+    const u = cleanUser($("#authUser").value), p = $("#authPass").value;
+    if (!/^[a-z0-9._-]{3,30}$/.test(u)) { msg.textContent = "El usuario debe tener entre 3 y 30 caracteres: letras, números, punto, guion o guion bajo."; return; }
+    if (p.length < 6) { msg.textContent = "La contraseña tiene que tener al menos 6 caracteres."; return; }
+    if (authMode === "signup" && p !== $("#authPass2").value) { msg.textContent = "Las contraseñas no coinciden."; return; }
+    const btn = $("#authBtn"); btn.disabled = true;
+    try {
+      if (authMode === "signup") {
+        const cred = await firebase.auth().createUserWithEmailAndPassword(toEmail(u), p);
+        try { await cred.user.updateProfile({ displayName: u }); } catch (err) {}
+      } else {
+        await firebase.auth().signInWithEmailAndPassword(toEmail(u), p);
+      }
+      // onAuthStateChanged abre el panel
+    } catch (err) { msg.textContent = authErr(err); }
+    finally { btn.disabled = false; }
+  });
+  $("#logoutBtn").addEventListener("click", async () => { try { await firebase.auth().signOut(); } catch (e) { showAuth(); } });
+
+  async function init() {
+    if (authOn) {
+      $("#app").hidden = true;
+      if (!window.firebase?.initializeApp) { $("#auth").hidden = false; $("#authMsg").textContent = location.protocol === "file:" || window.self !== window.top
+        ? "No se ha podido cargar Firebase. Parece que estás viendo la página en una vista previa: descárgala y ábrela con Chrome, Safari o Edge, o entra en tu web de GitHub."
+        : "No se ha podido cargar Firebase. Revisa tu conexión a internet y recarga la página. Si usas un bloqueador de anuncios, desactívalo para esta web."; return; }
+      try {
+        firebase.initializeApp(FB);
+        fdb = firebase.firestore();
+      } catch (err) { $("#auth").hidden = false; $("#authMsg").textContent = "La configuración de Firebase no es correcta. Revisa lo que has pegado en TRACKER_CONFIG."; return; }
+      store.mode = "fb";
+      firebase.auth().onAuthStateChanged((user) => (user ? startSession(user) : showAuth()));
+      return;
+    }
+    let db = null, user = null;
+    try { [db, user] = await Promise.all([window.claude?.use?.("db") ?? null, window.claude?.use?.("user") ?? null]); } catch (e) {}
+    if (!db) {
+      loadLocal(); setSync(false, "Guardado en este navegador"); $("#backup").hidden = false; render(); return;
+    }
+    if (user) { try { canWrite = await user.isOwner(); } catch (e) {} }
+    store.col = db.collection("registros");
+    store.mode = "db";
+    setSync(true, "Guardado en tu cuenta");
+    store.col.onSnapshot(
+      (snap) => { records = snap.docs.map((d) => ({ id: d.id, ...d.data() })); render(); },
+      () => setSync(false, "Sin conexión con el guardado")
+    );
+    applyWriteMode();
+  }
+  function applyWriteMode() {
+    document.querySelectorAll("form.entry, .del, td select, .cons select, .step, td input.pct, .fcard button, #clearEx").forEach((el) => { if (!canWrite) el.hidden = true; });
+  }
+
+  // ---------- Cálculos ----------
+  const sum = (arr, k) => arr.reduce((a, r) => a + (Number(r[k]) || 0), 0);
+  function split() {
+    const allCh = records.filter((r) => r.tipo === "challenge");
+    const chById = Object.fromEntries(allCh.map((c) => [c.id, c]));
+    // Operaciones y retiros heredan el mercado de su cuenta (o el suyo propio si la cuenta se borró)
+    const recMkt = (r) => (chById[r.cuentaId] ? mktOf(chById[r.cuentaId]) : r.mercado === "futuros" ? "futuros" : "cfd");
+    const ch = allCh.filter((c) => mktOf(c) === market);
+    const op = records.filter((r) => r.tipo === "operacion" && recMkt(r) === market);
+    const rt = records.filter((r) => r.tipo === "retiro" && recMkt(r) === market);
+    $("#nMktCfd").textContent = allCh.filter((c) => mktOf(c) === "cfd").length;
+    $("#nMktFut").textContent = allCh.filter((c) => mktOf(c) === "futuros").length;
+    return { ch, op, rt };
+  }
+  const accName = (c) => c ? `${c.empresa} · ${c.cuenta}` : "Cuenta eliminada";
+
+  // ---------- Render ----------
+  function render() {
+    const { ch, op, rt } = split();
+    const byId = Object.fromEntries(ch.map((c) => [c.id, c]));
+    const enCurso = ch.filter((c) => c.estado === "en_curso").length;
+    const live = ch.filter((c) => c.estado === "fondeada");
+    const ever = ch.filter((c) => c.estado === "fondeada" || c.estado === "perdida");
+    const resueltas = ch.filter((c) => c.estado !== "en_curso").length;
+    const gastos = sum(ch, "coste"), ganancias = sum(rt, "importe"), neto = ganancias - gastos;
+    const conRetiro = ever.filter((c) => rt.some((r) => r.cuentaId === c.id)).length;
+
+    $("#kEval").textContent = ch.length;
+    const enF2 = ch.filter((c) => c.estado === "en_curso" && phaseOf(c) === 2).length;
+    $("#kEvalSub").textContent = market === "futuros" ? `↑ ${enCurso} en progreso` : `↑ ${enCurso} en progreso · ${enF2} en fase 2`;
+    $("#kLive").textContent = live.length;
+    $("#kLiveSub").textContent = `↑ ${ever.length} fondeadas en total`;
+    $("#kRatio").textContent = pct(resueltas ? (ever.length / resueltas) * 100 : 0);
+    $("#kRatioSub").textContent = `↑ Con retiro: ${pct(ever.length ? (conRetiro / ever.length) * 100 : 0)}`;
+    $("#kGas").textContent = eur(gastos);
+    $("#kGasSub").textContent = `↓ Promedio: ${eur(ch.length ? gastos / ch.length : 0)}`;
+    $("#kGan").textContent = eur(ganancias);
+    $("#kGanSub").textContent = `↑ Promedio: ${eur(rt.length ? ganancias / rt.length : 0)}`;
+    $("#kNet").textContent = eur(neto);
+    $("#kNet").classList.toggle("neg", neto < 0);
+    const roi = gastos ? (neto / gastos) * 100 : 0;
+    const ns = $("#kNetSub");
+    ns.textContent = `${roi >= 0 ? "↑" : "↓"} ROI: ${pct(roi)}`;
+    ns.className = "trend " + (roi >= 0 ? "up" : "down");
+    $("#kNetIco").className = "ico " + (neto >= 0 ? "green" : "red");
+
+    // Métricas diarias (operaciones)
+    const days = {};
+    op.forEach((o) => { days[o.fecha] = (days[o.fecha] || 0) + (Number(o.pnl) || 0); });
+    const vals = Object.values(days);
+    const best = vals.length ? Math.max(...vals) : 0, worst = vals.length ? Math.min(...vals) : 0;
+    $("#mBest").textContent = eur(best);
+    $("#mWorst").textContent = eur(worst);
+    $("#mAvg").textContent = eur(vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : 0);
+    $("#mPay").textContent = rt.length;
+
+    $("#nCh").textContent = ch.length; $("#nOp").textContent = op.length; $("#nRt").textContent = rt.length; $("#nFd").textContent = ever.length;
+    $("#exBanner").hidden = !records.some((r) => r.ejemplo) || !canWrite;
+
+    renderTables(ch, op, rt, byId, ever);
+    renderSelects(ch, ever);
+    renderChart(ch, rt);
+    applyWriteMode();
+  }
+
+  const exTag = (r) => (r.ejemplo ? '<span class="chip ej">ejemplo</span>' : "");
+  const delBtn = (id) => `<button class="del" type="button" data-del="${esc(id)}">Borrar</button>`;
+  const byDateDesc = (a, b) => (b.fecha || "").localeCompare(a.fecha || "");
+
+  function renderTables(ch, op, rt, byId, ever) {
+    const fut = market === "futuros";
+    const unit = fut ? "$" : "%";
+    $("#hCh").innerHTML = `<tr><th>Fecha</th><th>Empresa</th><th>Cuenta</th><th class="num">Tamaño</th><th class="num">Coste</th><th>${fut ? "Evaluación" : "Fase"}</th><th class="num">Profit target</th><th class="num">Max DD</th><th class="num">Daily DD</th>${fut ? "<th>Consistencia</th>" : ""}<th>Estado</th><th></th></tr>`;
+    const cols = fut ? 12 : 11;
+
+    const phaseCell = (c) => {
+      if (isFut(c)) {
+        return `<span class="phase"><span class="chip f0">Fase única</span>${c.estado === "en_curso" ? `<button class="step go" type="button" data-pass="${esc(c.id)}">Aprobar</button>` : ""}</span>`;
+      }
+      return `<span class="phase"><span class="chip f${phaseOf(c)}">Fase ${phaseOf(c)}</span>${c.estado === "en_curso"
+        ? (phaseOf(c) === 1
+          ? `<button class="step" type="button" data-pass="${esc(c.id)}">Superar fase 1</button>`
+          : `<button class="step go" type="button" data-pass="${esc(c.id)}">Aprobar fase 2</button>`)
+        : ""}</span>`;
+    };
+    const fieldCell = (c, f, lbl) => {
+      const v = c[f] != null && c[f] !== "" ? String(c[f]).replace(".", ",") : "";
+      const input = `<input class="pct" id="${f}-${esc(c.id)}" data-field="${f}" data-id="${esc(c.id)}" inputmode="decimal" value="${esc(v)}" placeholder="—" aria-label="${lbl} de ${esc(c.cuenta)}">`;
+      return `<td class="num"><span class="pctcell">${fut ? unit + input : input + unit}</span></td>`;
+    };
+    const consCell = (c) => `<td><span class="cons"><select data-cons="${esc(c.id)}" aria-label="Consistencia de ${esc(c.cuenta)}">
+        ${[["40", "40%"], ["50", "50%"], ["", "Sin regla"]].map(([v, t]) => `<option value="${v}" ${String(c.consistencia ?? "") === v ? "selected" : ""}>${t}</option>`).join("")}
+      </select>${consStatus(c, op)}</span></td>`;
+
+    $("#tCh").innerHTML = ch.length ? [...ch].sort(byDateDesc).map((c) => `
+      <tr>
+        <td>${esc(dLabel(c.fecha))}</td>
+        <td>${esc(c.empresa)}${exTag(c)}</td>
+        <td>${esc(c.cuenta)}</td>
+        <td class="num">${esc(sizeTxt(c.tamano))}</td>
+        <td class="num neg-t">${eur(c.coste)}</td>
+        <td>${phaseCell(c)}</td>
+        ${PCT_FIELDS.map(([f, lbl]) => fieldCell(c, f, lbl)).join("")}
+        ${fut ? consCell(c) : ""}
+        <td><select data-state="${esc(c.id)}" aria-label="Estado de ${esc(c.cuenta)}">
+          ${Object.entries(ESTADOS).map(([k, v]) => `<option value="${k}" ${k === c.estado ? "selected" : ""} ${!fut && phaseOf(c) === 1 && (k === "fondeada" || k === "perdida") ? "disabled" : ""}>${v}</option>`).join("")}
+        </select></td>
+        <td class="num">${delBtn(c.id)}</td>
+      </tr>`).join("") : `<tr><td colspan="${cols}" class="empty">Todavía no hay challenges de ${fut ? "futuros" : "CFD"}. Añade el primero con el formulario de arriba.</td></tr>`;
+
+    $("#tOp").innerHTML = op.length ? [...op].sort(byDateDesc).map((o) => `
+      <tr>
+        <td>${esc(dLabel(o.fecha))}</td>
+        <td>${esc(accName(byId[o.cuentaId]))}${exTag(o)}</td>
+        <td>${esc(o.activo || "—")}</td>
+        <td>${o.direccion === "short" ? '<span class="chip short">Short</span>' : o.direccion === "long" ? '<span class="chip long">Long</span>' : "—"}</td>
+        <td class="num ${o.pnl >= 0 ? "pos" : "neg-t"}">${o.pnl >= 0 ? "+" : ""}${eur(o.pnl)}</td>
+        <td class="note">${esc(o.nota || "")}</td>
+        <td class="num">${delBtn(o.id)}</td>
+      </tr>`).join("") : `<tr><td colspan="7" class="empty">Sin operaciones de ${fut ? "futuros" : "CFD"}. Elige la cuenta y apunta el resultado de cada trade o de cada día.</td></tr>`;
+
+    $("#tRt").innerHTML = rt.length ? [...rt].sort(byDateDesc).map((r) => `
+      <tr>
+        <td>${esc(dLabel(r.fecha))}</td>
+        <td>${esc(accName(byId[r.cuentaId]))}${exTag(r)}</td>
+        <td class="num pos">${eur(r.importe)}</td>
+        <td class="num">${delBtn(r.id)}</td>
+      </tr>`).join("") : `<tr><td colspan="4" class="empty">Aún no hay retiros. Cuando cobres un payout de una cuenta fondeada, apúntalo aquí.</td></tr>`;
+
+    $("#gFd").innerHTML = ever.length ? ever.sort((a, b) => (a.estado === b.estado ? byDateDesc(a, b) : a.estado === "fondeada" ? -1 : 1)).map((c) => {
+      const pnl = sum(op.filter((o) => o.cuentaId === c.id), "pnl");
+      const rts = rt.filter((r) => r.cuentaId === c.id);
+      const cobrado = sum(rts, "importe");
+      const neto = cobrado - (Number(c.coste) || 0);
+      return `<article class="fcard">
+        <header><div><h3>${esc(c.cuenta)}${exTag(c)}</h3><span class="co">${esc(c.empresa)} · ${esc(sizeTxt(c.tamano))}</span></div>
+          <span class="chip ${c.estado}">${c.estado === "fondeada" ? "Live" : "Perdida"}</span></header>
+        <div class="frow"><span>P&amp;L en operaciones</span><span class="${pnl >= 0 ? "pos" : "neg-t"}">${pnl >= 0 ? "+" : ""}${eur(pnl)}</span></div>
+        <div class="frow"><span>Retiros</span><span>${rts.length} · ${eur(cobrado)}</span></div>
+        <div class="frow"><span>Max DD · Daily DD</span><span>${unitTxt(c.maxDD, c)} · ${unitTxt(c.dailyDD, c)}</span></div>
+        ${isFut(c) ? `<div class="frow"><span>Consistencia ${c.consistencia ? c.consistencia + "%" : ""}</span><span>${consStatus(c, op)}</span></div>` : ""}
+        <div class="frow"><span>Coste del challenge</span><span>${eur(c.coste)}</span></div>
+        <div class="frow"><span>Neto de la cuenta</span><span class="${neto >= 0 ? "pos" : "neg-t"}">${eur(neto)}</span></div>
+        <button class="btn small ghost" type="button" data-flip="${esc(c.id)}">${c.estado === "fondeada" ? "Marcar como perdida" : "Volver a Live"}</button>
+      </article>`;
+    }).join("") : `<div class="empty">Ninguna cuenta fondeada de ${market === "futuros" ? "futuros" : "CFD"} todavía. Cuando apruebes un challenge, aparecerá aquí.</div>`;
+  }
+
+  function renderSelects(ch, ever) {
+    const keep = (sel, opts, emptyTxt) => {
+      const prev = sel.value;
+      sel.innerHTML = opts.length ? opts.map((c) => `<option value="${esc(c.id)}">${esc(accName(c))}</option>`).join("") : `<option value="">${emptyTxt}</option>`;
+      if (opts.some((c) => c.id === prev)) sel.value = prev;
+    };
+    keep($("#opAcc"), ch.filter((c) => c.estado !== "fallida").sort(byDateDesc), "Primero añade un challenge");
+    keep($("#rtAcc"), ever.filter((c) => c.estado === "fondeada").concat(ever.filter((c) => c.estado === "perdida")), "No hay cuentas fondeadas");
+  }
+
+  // ---------- Gráfico ----------
+  let chart = null;
+  const css = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+  function renderChart(ch, rt) {
+    const flows = {};
+    ch.forEach((c) => { if (!c.fecha) return; (flows[c.fecha] ||= { g: 0, e: 0 }).e += Number(c.coste) || 0; });
+    rt.forEach((r) => { if (!r.fecha) return; (flows[r.fecha] ||= { g: 0, e: 0 }).g += Number(r.importe) || 0; });
+    const dates = Object.keys(flows).sort();
+    $("#chartEmpty").hidden = dates.length > 0;
+    let acc = 0;
+    const cap = [], gan = [], gas = [];
+    dates.forEach((d) => { acc += flows[d].g - flows[d].e; cap.push(+acc.toFixed(2)); gan.push(flows[d].g); gas.push(flows[d].e); });
+    if (typeof Chart === "undefined") return;
+
+    const accent = css("--accent"), gain = css("--gain"), loss = css("--loss"), muted = css("--muted"), line = css("--line");
+    const data = {
+      labels: dates.map(dLabel),
+      datasets: [
+        { label: "Capital", data: cap, borderColor: accent, borderWidth: 2.5, pointRadius: 0, pointHoverRadius: 5, tension: 0.35, fill: "origin",
+          backgroundColor: (ctx) => { const a = ctx.chart.chartArea; if (!a) return "transparent"; const g = ctx.chart.ctx.createLinearGradient(0, a.top, 0, a.bottom); g.addColorStop(0, accent + "55"); g.addColorStop(1, accent + "05"); return g; } },
+        { label: "Ganancias", data: gan, borderColor: gain, borderWidth: 2, pointRadius: 0, pointHoverRadius: 4, tension: 0.4, fill: false },
+        { label: "Gastos", data: gas, borderColor: loss, borderWidth: 2, pointRadius: 0, pointHoverRadius: 4, tension: 0.4, fill: false },
+      ],
+    };
+    const options = {
+      responsive: true, maintainAspectRatio: false, animation: { duration: 400 },
+      interaction: { mode: "index", intersect: false },
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: (c) => ` ${c.dataset.label}: ${eur(c.parsed.y)}` } } },
+      scales: {
+        x: { grid: { display: false }, border: { color: line }, ticks: { color: muted, maxTicksLimit: 8, maxRotation: 0, font: { family: "Figtree", size: 11 } } },
+        y: { grid: { color: line }, border: { display: false }, ticks: { color: muted, maxTicksLimit: 6, font: { family: "Figtree", size: 11 },
+          callback: (v) => (Math.abs(v) >= 1000 ? (v / 1000).toLocaleString("es-ES", { maximumFractionDigits: 1 }) + "k €" : v + " €") } },
+      },
+    };
+    if (chart) { chart.data = data; chart.options = options; chart.update(); }
+    else chart = new Chart($("#chart"), { type: "line", data, options });
+  }
+  const rethemeChart = () => { if (chart) { chart.destroy(); chart = null; } render(); };
+  matchMedia("(prefers-color-scheme: dark)").addEventListener("change", rethemeChart);
+  new MutationObserver(rethemeChart).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+
+  // ---------- Pestañas ----------
+  document.querySelectorAll(".tab[data-tab]").forEach((t) => t.addEventListener("click", () => {
+    document.querySelectorAll(".tab[data-tab]").forEach((x) => x.setAttribute("aria-selected", String(x === t)));
+    document.querySelectorAll(".pane").forEach((p) => { p.hidden = p.dataset.pane !== t.dataset.tab; });
+  }));
+
+  // ---------- Formularios ----------
+  ["#chDate", "#opDate", "#rtDate"].forEach((s) => ($(s).value = today()));
+  async function submit(form, msgEl, build, reset) {
+    msgEl.textContent = "";
+    const rec = build();
+    if (typeof rec === "string") { msgEl.textContent = rec; return; }
+    const btn = form.querySelector("button[type=submit]"); btn.disabled = true;
+    try { await store.add(rec); reset(); }
+    catch (e) { msgEl.textContent = e?.code === "quota_exceeded" ? "Se ha llenado el espacio de guardado. Borra registros antiguos para seguir añadiendo." : "No se ha podido guardar. Revisa la conexión e inténtalo de nuevo."; }
+    finally { btn.disabled = false; }
+  }
+  $("#fCh").addEventListener("submit", (e) => {
+    e.preventDefault();
+    submit(e.target, $("#chMsg"), () => {
+      const coste = num($("#chCost").value), tamano = $("#chSize").value ? num($("#chSize").value) : 0;
+      if (!isFinite(coste) || coste < 0) return "El coste tiene que ser un número, por ejemplo 540 o 89,90.";
+      if (!isFinite(tamano)) return "El tamaño tiene que ser un número, por ejemplo 100000.";
+      const fut = market === "futuros";
+      const fase = fut ? 1 : Number($("#chPhase").value), estado = $("#chState").value;
+      if (!fut && fase === 1 && (estado === "fondeada" || estado === "perdida")) return "Una cuenta en fase 1 no puede estar aprobada. Solo cuenta como aprobada al superar la fase 2.";
+      const vals = {};
+      for (const [f, lbl, sel] of [["profitTarget", "El profit target", "#chPT"], ["maxDD", "El Max DD", "#chMDD"], ["dailyDD", "El Daily DD", "#chDDD"]]) {
+        const raw = $(sel).value.trim().replace(/[%$]/g, "");
+        if (!raw) { vals[f] = null; continue; }
+        const v = num(raw);
+        if (fut ? !isFinite(v) || v < 0 : !isFinite(v) || v < 0 || v > 100)
+          return fut ? `${lbl} tiene que ser una cantidad en dólares, por ejemplo 3000.` : `${lbl} tiene que ser un porcentaje entre 0 y 100, por ejemplo 10 o 4,5.`;
+        vals[f] = v;
+      }
+      const rec = { tipo: "challenge", mercado: market, empresa: $("#chEmp").value.trim(), cuenta: $("#chName").value.trim(), tamano, coste, fecha: $("#chDate").value, fase, estado, ...vals };
+      if (fut) rec.consistencia = $("#chCons").value ? Number($("#chCons").value) : null;
+      return rec;
+    }, () => { $("#chName").value = ""; $("#chCost").value = ""; });
+  });
+  // CFD: en fase 1 no se puede elegir "aprobada" ni "fondeada perdida". Futuros: fase única, todo permitido.
+  function syncPhaseForm() {
+    const lock = market === "cfd" && $("#chPhase").value === "1";
+    ["fondeada", "perdida"].forEach((v) => { $(`#chState option[value="${v}"]`).disabled = lock; });
+    if (lock && ($("#chState").value === "fondeada" || $("#chState").value === "perdida")) $("#chState").value = "en_curso";
+  }
+  $("#chPhase").addEventListener("change", syncPhaseForm);
+
+  // ---------- Selector CFD / Futuros ----------
+  function syncMarketUI() {
+    const fut = market === "futuros", ui = MKT_UI[market];
+    document.querySelectorAll("[data-mkt]").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.mkt === market)));
+    $("#chPhaseWrap").hidden = fut;
+    $("#chConsWrap").hidden = !fut;
+    document.querySelectorAll("#fCh .u").forEach((u) => (u.textContent = fut ? "$" : "%"));
+    $("#chEmp").placeholder = ui.emp; $("#chName").placeholder = ui.name; $("#chSize").placeholder = ui.size; $("#chCost").placeholder = ui.cost;
+    $("#chPT").placeholder = ui.pt; $("#chMDD").placeholder = ui.mdd; $("#chDDD").placeholder = ui.ddd || "opcional";
+    $("#opAsset").placeholder = ui.asset;
+    $("#chHint").textContent = ui.hint;
+    $("#firms").innerHTML = FIRMS[market].map((f) => `<option value="${esc(f)}"></option>`).join("");
+    syncPhaseForm();
+  }
+  document.querySelectorAll("[data-mkt]").forEach((b) => b.addEventListener("click", () => {
+    if (market === b.dataset.mkt) return;
+    market = b.dataset.mkt;
+    try { localStorage.setItem(MKT_KEY, market); } catch (e) {}
+    ["#chPT", "#chMDD", "#chDDD"].forEach((s) => ($(s).value = ""));
+    syncMarketUI();
+    if (chart) { chart.destroy(); chart = null; }
+    render();
+  }));
+  syncMarketUI();
+  $("#fOp").addEventListener("submit", (e) => {
+    e.preventDefault();
+    submit(e.target, $("#opMsg"), () => {
+      if (!$("#opAcc").value) return "Primero añade un challenge para poder asignarle operaciones.";
+      const pnl = num($("#opPnl").value);
+      if (!isFinite(pnl)) return "El resultado tiene que ser un número: positivo si ganaste, negativo si perdiste.";
+      return { tipo: "operacion", mercado: market, cuentaId: $("#opAcc").value, fecha: $("#opDate").value, activo: $("#opAsset").value.trim().toUpperCase(), direccion: $("#opDir").value, pnl, nota: $("#opNote").value.trim() };
+    }, () => { $("#opPnl").value = ""; $("#opNote").value = ""; });
+  });
+  $("#fRt").addEventListener("submit", (e) => {
+    e.preventDefault();
+    submit(e.target, $("#rtMsg"), () => {
+      if (!$("#rtAcc").value) return "Necesitas una cuenta fondeada para registrar un retiro.";
+      const importe = num($("#rtAmt").value);
+      if (!isFinite(importe) || importe <= 0) return "El importe tiene que ser un número mayor que cero.";
+      return { tipo: "retiro", mercado: market, cuentaId: $("#rtAcc").value, fecha: $("#rtDate").value, importe };
+    }, () => { $("#rtAmt").value = ""; });
+  });
+
+  // ---------- Acciones en tablas ----------
+  document.addEventListener("click", async (e) => {
+    const del = e.target.closest("[data-del]");
+    if (del) {
+      if (!del.classList.contains("armed")) {
+        del.classList.add("armed"); del.textContent = "¿Seguro?";
+        setTimeout(() => { if (del.isConnected) { del.classList.remove("armed"); del.textContent = "Borrar"; } }, 3000);
+        return;
+      }
+      del.disabled = true;
+      try { await store.remove(del.dataset.del); } catch (err) { del.disabled = false; }
+      return;
+    }
+    const pass = e.target.closest("[data-pass]");
+    if (pass) {
+      const c = records.find((r) => r.id === pass.dataset.pass);
+      if (!c) return;
+      pass.disabled = true;
+      // CFD: fase 1 superada → fase 2 (sigue en curso); fase 2 superada → fondeada. Futuros: fase única → fondeada.
+      const patch = isFut(c) ? { estado: "fondeada" } : phaseOf(c) === 1 ? { fase: 2 } : { fase: 2, estado: "fondeada" };
+      try { await store.update(c.id, patch); } catch (err) { pass.disabled = false; }
+      return;
+    }
+    const flip = e.target.closest("[data-flip]");
+    if (flip) {
+      const c = records.find((r) => r.id === flip.dataset.flip);
+      if (c) { flip.disabled = true; try { await store.update(c.id, { estado: c.estado === "fondeada" ? "perdida" : "fondeada" }); } catch (err) { flip.disabled = false; } }
+    }
+  });
+  document.addEventListener("change", (e) => {
+    const s = e.target.closest("[data-state]");
+    if (s) {
+      const c = records.find((r) => r.id === s.dataset.state);
+      if (c) store.update(c.id, isFut(c) ? { estado: s.value } : { estado: s.value, fase: phaseOf(c) }).catch(() => {});
+      return;
+    }
+    const k = e.target.closest("[data-cons]");
+    if (k) {
+      store.update(k.dataset.cons, { consistencia: k.value ? Number(k.value) : null }).catch(() => {});
+      return;
+    }
+    const p = e.target.closest("input[data-field]");
+    if (p) {
+      const c = records.find((r) => r.id === p.dataset.id);
+      const raw = p.value.trim().replace(/[%$]/g, "");
+      const v = raw ? num(raw) : null;
+      if (raw && (!isFinite(v) || v < 0 || (!isFut(c) && v > 100))) { render(); return; }
+      store.update(p.dataset.id, { [p.dataset.field]: v }).catch(() => {});
+    }
+  });
+  $("#clearEx").addEventListener("click", async (e) => {
+    const b = e.currentTarget;
+    if (!b.classList.contains("armed")) { b.classList.add("armed"); b.textContent = "Pulsa otra vez para borrar"; setTimeout(() => { b.classList.remove("armed"); b.textContent = "Borrar ejemplos"; }, 3000); return; }
+    b.disabled = true; b.textContent = "Borrando…";
+    for (const r of records.filter((r) => r.ejemplo)) { try { await store.remove(r.id); } catch (err) {} }
+    b.disabled = false; b.classList.remove("armed"); b.textContent = "Borrar ejemplos";
+  });
+
+  // ---------- Copia de seguridad (solo en modo navegador) ----------
+  function showImpMsg(txt) { const m = $("#impMsg"); m.textContent = txt; m.hidden = false; setTimeout(() => { m.hidden = true; }, 6000); }
+  $("#expBtn").addEventListener("click", () => {
+    const blob = new Blob([JSON.stringify({ app: "tracker-fondeo", version: 1, exportado: new Date().toISOString(), registros: records }, null, 2)], { type: "application/json" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `tracker-fondeo-${today()}.json`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  });
+  $("#impFile").addEventListener("change", async (e) => {
+    const file = e.target.files[0]; e.target.value = "";
+    if (!file) return;
+    try {
+      const parsed = JSON.parse(await file.text());
+      const list = Array.isArray(parsed) ? parsed : parsed.registros;
+      if (!Array.isArray(list)) throw new Error("formato");
+      const valid = list.filter((r) => r && typeof r === "object" && r.id && ["challenge", "operacion", "retiro"].includes(r.tipo));
+      await store.importMany(valid);
+      showImpMsg(`Copia importada: ${valid.length} registros. Los que ya tenías con el mismo identificador se han actualizado.`);
+    } catch (err) {
+      showImpMsg("Ese archivo no es una copia del tracker. Usa un .json creado con «Exportar copia».");
+    }
+  });
+
+  render();
+  init();
+})();
+</script>
+</body>
+</html>
